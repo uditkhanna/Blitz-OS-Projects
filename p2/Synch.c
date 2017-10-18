@@ -95,26 +95,108 @@ code Synch
       ----------  Mutex . Init  ----------
 
       method Init ()
-          FatalError ("Unimplemented method")
+          -- FatalError ("Unimplemented method")
+	  flag = FREE  -- Initialize the lock to free
+	  heldBy = null -- No thread is currently holding the lock
+	  waitingThreads = new List [Thread]
         endMethod
 
       ----------  Mutex . Lock  ----------
 
       method Lock ()
-          FatalError ("Unimplemented method")
+          -- FatalError ("Unimplemented method")
+
+          var oldStatus, junk: int
+          -- Disable interrupts since we manipulate a shared variable
+	  oldStatus = SetInterruptsTo (DISABLED)
+	  
+	  -- print ("LOCK: ")
+	  -- print (currentThread.name)
+	  -- print (" has requested Lock. ")
+	  -- print ("Current Status = ")
+
+	  
+          switch flag
+	   case HELD:
+	     -- print ("HELD by ")
+	     -- print (heldBy.name)
+	     -- print ("\n")
+	     break
+	   case FREE:
+	     -- print ("FREE \n")
+	     break
+	  endSwitch
+
+	  if (flag == HELD)
+	    -- print (currentThread.name)
+	    -- print (" added to waiting list \n")
+	    waitingThreads.AddToEnd (currentThread)
+	    currentThread.Sleep ()
+	  endIf
+
+	  -- The Lock method may put the thread to sleep but it would always exit with the lock granted to the calling thread
+	    heldBy = currentThread
+	    flag = HELD
+	    -- print ("Lock granted to ")
+	    -- print (currentThread.name)
+	    -- print ("\n")
+
+           junk = SetInterruptsTo (oldStatus) -- Restore interrupt status
+
         endMethod
 
       ----------  Mutex . Unlock  ----------
 
       method Unlock ()
-          FatalError ("Unimplemented method")
+          -- FatalError ("Unimplemented method")
+         var oldStatus, junk: int
+	     t: ptr to Thread
+
+	 oldStatus = SetInterruptsTo (DISABLED)
+
+         -- print ("UNLOCK: ") 
+	 -- print (currentThread.name)
+	 -- print ("\n")
+
+	  if (currentThread != heldBy)
+	    FatalError ("LOCK: Error! Only owner should call Unlock")
+          endIf
+
+	 t = waitingThreads.Remove ()
+
+         if (t == null)
+	   flag = FREE
+	   heldBy = null
+	   -- print ("UNLOCK: No threads on waiting list. Lock is free\n")
+	 else
+	   t.status = READY
+	   readyList.AddToEnd (t)
+	   -- print ("UNLOCK: ")
+	   -- print (t.name)
+	   -- print (" will get the lock next \n")
+	 endIf
+
+	 junk = SetInterruptsTo (oldStatus)
+
         endMethod
 
       ----------  Mutex . IsHeldByCurrentThread  ----------
 
       method IsHeldByCurrentThread () returns bool
-          FatalError ("Unimplemented method")
-          return false
+             var heldByMe: bool
+                 oldStatus, junk: int
+
+	     oldStatus = SetInterruptsTo (DISABLED)
+	     
+	     if (currentThread == heldBy)
+	       heldByMe = true
+	      else
+	        heldByMe = false
+	      endIf
+	 
+	     junk = SetInterruptsTo (oldStatus)
+             
+	     return heldByMe 
         endMethod
 
   endBehavior

@@ -2,6 +2,10 @@ header Synch
 
   uses Thread
 
+  -- /* Addition: Enum for mutex
+  enum HELD = 0, FREE
+  -- /*
+
   class Semaphore
     superclass Object
     fields
@@ -15,6 +19,14 @@ header Synch
 
   class Mutex
     superclass Object
+
+    -- /* Addition: Add fields to the Mutex class
+    fields
+      heldBy: ptr to Thread -- The thread that holds the lock
+      flag: int	            
+      waitingThreads: List [Thread]
+   -- */
+
     methods
       Init ()
       Lock ()

@@ -22,10 +22,10 @@ code Main
 
       -----  Uncomment any one of the following to perform the desired test  -----
 
-      SimpleThreadExample ()
+      -- SimpleThreadExample ()
       -- MoreThreadExamples ()
       -- TestMutex ()
-      -- ProducerConsumer ()
+       ProducerConsumer ()
       -- DiningPhilosophers ()
 
       ThreadFinish ()
@@ -311,7 +311,18 @@ code Main
     bufferNextOut: int = 0
     thArray: array [8] of Thread = new array of Thread { 8 of new Thread }
 
+    full_slots: Semaphore = new Semaphore
+    empty_slots: Semaphore = new Semaphore
+    prod_lock: Mutex = new Mutex
+    cons_lock: Mutex = new Mutex
+
   function ProducerConsumer ()
+
+      full_slots.Init (0)
+      empty_slots.Init (BUFFER_SIZE)
+      prod_lock.Init()
+      cons_lock.Init()
+
 
       print ("     ")
 
@@ -348,17 +359,22 @@ code Main
         c: char = intToChar ('A' + myId - 1)
       for i = 1 to 5
         -- Perform synchroniztion...
+        empty_slots.Down()
+
 
         -- Add c to the buffer
+	-- Acquire the prducer lock to protect critical section
+	prod_lock.Lock()
         buffer [bufferNextIn] = c
         bufferNextIn = (bufferNextIn + 1) % BUFFER_SIZE
         bufferSize = bufferSize + 1
 
         -- Print a line showing the state
         PrintBuffer (c)
+	prod_lock.Unlock()
 
         -- Perform synchronization...
-
+        full_slots.Up()
       endFor
     endFunction
 
@@ -367,16 +383,21 @@ code Main
         c: char
       while true
         -- Perform synchroniztion...
+        full_slots.Down()
 
         -- Remove next character from the buffer
+        -- Acquire the consumer lock to protect critical section
+        cons_lock.Lock()
         c = buffer [bufferNextOut]
         bufferNextOut = (bufferNextOut + 1) % BUFFER_SIZE
         bufferSize = bufferSize - 1
 
         -- Print a line showing the state
         PrintBuffer (c)
+	cons_lock.Unlock()
 
         -- Perform synchronization...
+        empty_slots.Up()
 
       endWhile
     endFunction
