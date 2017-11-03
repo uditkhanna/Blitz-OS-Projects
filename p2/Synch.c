@@ -134,7 +134,12 @@ code Synch
 	    currentThread.Sleep ()
 	  endIf
 
-	  -- The Lock method may put the thread to sleep but it would always exit with the lock granted to the calling thread
+	  -- NOTE: At this point, I do not check if the lock is free 
+	  -- because my UNLOCK method does not free the lock if there
+	  -- is a thread waiting on the mutex lock. This would make
+	  -- sure that the woken-up thread always gets the lock.
+	  -- This will avoid starvation.
+	  
 	    heldBy = currentThread
 	    flag = HELD
 	    -- print ("Lock granted to ")
@@ -168,7 +173,11 @@ code Synch
 	   flag = FREE
 	   heldBy = null
 	   -- print ("UNLOCK: No threads on waiting list. Lock is free\n")
+	 
 	 else
+	  
+	  -- NOTE: I do not free the lock at this point, because the thread that's woken up will assume it gets the lock.
+	   
 	   t.status = READY
 	   readyList.AddToEnd (t)
 	   -- print ("UNLOCK: ")

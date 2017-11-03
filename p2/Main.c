@@ -25,8 +25,8 @@ code Main
       -- SimpleThreadExample ()
       -- MoreThreadExamples ()
       -- TestMutex ()
-       ProducerConsumer ()
-      -- DiningPhilosophers ()
+      -- ProducerConsumer ()
+      DiningPhilosophers ()
 
       ThreadFinish ()
 
@@ -313,15 +313,19 @@ code Main
 
     full_slots: Semaphore = new Semaphore
     empty_slots: Semaphore = new Semaphore
-    prod_lock: Mutex = new Mutex
-    cons_lock: Mutex = new Mutex
+    -- prod_lock: Mutex = new Mutex
+    -- cons_lock: Mutex = new Mutex
+    -- print_lock: Mutex = new Mutex
+    flag: Mutex = new Mutex
 
   function ProducerConsumer ()
 
       full_slots.Init (0)
       empty_slots.Init (BUFFER_SIZE)
-      prod_lock.Init()
-      cons_lock.Init()
+      --prod_lock.Init()
+      --cons_lock.Init()
+      --print_lock.Init()
+      flag.Init()
 
 
       print ("     ")
@@ -363,15 +367,15 @@ code Main
 
 
         -- Add c to the buffer
-	-- Acquire the prducer lock to protect critical section
-	prod_lock.Lock()
+	-- Acquire the lock to protect critical section
+        flag.Lock()
         buffer [bufferNextIn] = c
         bufferNextIn = (bufferNextIn + 1) % BUFFER_SIZE
         bufferSize = bufferSize + 1
 
         -- Print a line showing the state
         PrintBuffer (c)
-	prod_lock.Unlock()
+        flag.Unlock()
 
         -- Perform synchronization...
         full_slots.Up()
@@ -386,15 +390,15 @@ code Main
         full_slots.Down()
 
         -- Remove next character from the buffer
-        -- Acquire the consumer lock to protect critical section
-        cons_lock.Lock()
+        -- Acquire the lock to protect critical section
+        flag.Lock()
         c = buffer [bufferNextOut]
         bufferNextOut = (bufferNextOut + 1) % BUFFER_SIZE
         bufferSize = bufferSize - 1
 
         -- Print a line showing the state
         PrintBuffer (c)
-	cons_lock.Unlock()
+        flag.Unlock()
 
         -- Perform synchronization...
         empty_slots.Up()
@@ -520,30 +524,111 @@ code Main
   class ForkMonitor
     superclass Object
     fields
+      -- SHARED VARIABLES
       status: array [5] of int             -- For each philosopher: HUNGRY, EATING, or THINKING
+   
+      -- MONITOR MUTEX
+      monitorLock: Mutex
+
+      -- CONDITION VARIABLES
+      cv: array [5] of Condition
+
     methods
       Init ()
       PickupForks (p: int)
       PutDownForks (p: int)
       PrintAllStatus ()
+      GetLeft (p:int) returns int
+      GetRight (p:int) returns int
   endClass
 
   behavior ForkMonitor
 
     method Init ()
       -- Initialize so that all philosophers are THINKING.
-      -- ...unimplemented...
+      var k: int
+ 
+      status = new array of int {5 of THINKING}
+      cv = new array of Condition {5 of new Condition}
+      for k = 0 to 4
+        cv[k].Init ()
+      endFor
+      monitorLock = new Mutex
+      monitorLock.Init()
       endMethod
 
     method PickupForks (p: int)
       -- This method is called when philosopher 'p' is wants to eat.
-      -- ...unimplemented...
+      var left, right: int
+
+      -- Acquire the mutex
+      monitorLock.Lock()
+      
+      left = self.GetLeft (p)
+
+      right = self.GetRight (p)
+
+      status[p] = HUNGRY
+      self.PrintAllStatus()
+
+      while ((status[left] == EATING) || status[right] == EATING)
+         cv[p].Wait(&monitorLock)
+      endWhile
+
+      status[p] = EATING
+      self.PrintAllStatus ()
+
+      -- Release the mutex
+      monitorLock.Unlock()
       endMethod
 
     method PutDownForks (p: int)
       -- This method is called when the philosopher 'p' is done eating.
-      -- ...unimplemented...
+      var left, right, left_of_left, right_of_right: int
+
+      -- Acquire the Monitor's mutex
+      monitorLock.Lock()
+
+      left = self.GetLeft (p)
+      right = self.GetRight (p)
+      left_of_left = self.GetLeft (left)
+      right_of_right = self.GetRight (right)
+
+      status[p] = THINKING
+      self.PrintAllStatus()
+
+      if (status [left_of_left] != EATING)
+        cv[left].Signal(&monitorLock)
+      endIf
+
+      if (status [right_of_right] != EATING)
+        cv[right].Signal(&monitorLock)  
+      endIf
+
+      -- Release the Monitor's mutex
+      monitorLock.Unlock()
       endMethod
+
+    method GetLeft (p: int) returns int
+      -- Returns the integer index of the philosopher to the LEFT
+      -- of the calling philosopher. Internal method of monitor
+      if (p==4)
+         return 0
+      else
+         return p+1
+      endIf
+      endMethod
+
+    method GetRight (p: int) returns int
+      -- Returns the integer index of the philosopher to the RIGHT
+      -- of the calling philosopher. Internal method of monitor.
+      if (p!=0)
+         return p-1
+      else
+         return 4
+      endIf
+      endMethod
+      
 
     method PrintAllStatus ()
       -- Print a single line showing the status of all philosophers.
